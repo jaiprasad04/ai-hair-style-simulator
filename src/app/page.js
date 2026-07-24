@@ -505,9 +505,9 @@ export default function StudioPage() {
             )}
           </button>
           <div className="flex items-center justify-between text-[9px] font-black text-zinc-400 px-1">
-            <span>Cost: 18 Credits</span>
+            <span>{Boolean(session?.user?.customApiKey) ? "Cost: 0 Credits (Custom API Key)" : "Cost: 18 Credits"}</span>
             <span className="flex items-center gap-1 text-amber-300 bg-amber-955/20 border border-amber-800/40 rounded px-2 py-0.5 font-bold">
-              <FaCoins /> Deducts balance live
+              <FaCoins /> {Boolean(session?.user?.customApiKey) ? "Bypasses Credits" : "Deducts balance live"}
             </span>
           </div>
 

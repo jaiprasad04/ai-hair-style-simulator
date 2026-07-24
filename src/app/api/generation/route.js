@@ -25,6 +25,10 @@ export async function POST(req) {
       return new NextResponse("Input face image is required", { status: 400 });
     }
 
+    const headerApiKey = req.headers.get("x-custom-api-key");
+    const customApiKey = headerApiKey || body.customApiKey || session.user.customApiKey || null;
+    const isUsingCustomKey = Boolean(customApiKey && customApiKey.trim().length > 0);
+
     // Construct detailed prompt for AI style simulator
     const cleanGender = gender || "unisex";
     const cleanStyle = styleName || "short";
@@ -32,16 +36,18 @@ export async function POST(req) {
     const userPrompt = customPrompt ? `, ${customPrompt}` : "";
     const cleanPrompt = `A high quality professional realistic portrait photo of a ${cleanGender} with a beautiful styled ${cleanColor} ${cleanStyle} hairstyle${userPrompt}. The hairstyle must blend naturally on the person's head, retaining the original facial features, facial structure, skin tone and background of the photo.`;
 
-    // 1. Deduct 18 credits
-    const cost = config.ai.generationCost || 18;
-    try {
-      await UserService.deductCredits(session.user.id, cost);
-    } catch (err) {
-      return new NextResponse("Insufficient credits", { status: 402 });
+    // 1. Deduct credits (0 if using custom API Key)
+    const cost = isUsingCustomKey ? 0 : (config.ai.generationCost || 18);
+    if (!isUsingCustomKey && cost > 0) {
+      try {
+        await UserService.deductCredits(session.user.id, cost);
+      } catch (err) {
+        return new NextResponse("Insufficient credits", { status: 402 });
+      }
     }
 
     // 2. Submit prediction
-    const apiKey = config.ai.apiKey;
+    const apiKey = isUsingCustomKey ? customApiKey.trim() : config.ai.apiKey;
     let resultImage = "";
     let requestId = `mock_${Date.now()}`;
     let status = "processing";
@@ -116,7 +122,6 @@ export async function POST(req) {
       }
     } else {
       // Mock mode
-      // Wait 3 seconds to simulate AI delay
       await new Promise(resolve => setTimeout(resolve, 3000));
       resultImage = FALLBACK_HAIRSTYLES[Math.floor(Math.random() * FALLBACK_HAIRSTYLES.length)];
       status = "completed";
@@ -138,7 +143,7 @@ export async function POST(req) {
       }
     });
 
-    return NextResponse.json({ id: creation.id, resultImage: creation.resultImage, status: creation.status });
+    return NextResponse.json(creation);
   } catch (error) {
     console.error("[GENERATION_POST]", error);
     return new NextResponse("Internal Error", { status: 500 });
